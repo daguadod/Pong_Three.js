@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      @font-face{ font-family:'digital'; src: url('DS-DIGIT.TTF') format("truetype"); }
+			body { background-image: url('BG.png'); margin: 0; }
+			canvas { width: 100%; height: 100% }
+      h2 {font-size: 400%}
+      h3 {color: yellow; font-size: 500%; text-align: center; }
+      #scoreboard,h1{ text-align: center; font-family: 'digital'; color: white}
+      #scores{ font-size: 500%;}
+      #option{ font-size: 200%;  border: none; background-color: black; color:purple; position: absolute; top: 0px; left: 0px; font-family: 'digital'; color: white}
+      #option1{ font-size: 200%;  border: none; background-color: black; color:purple; position: absolute; top: 0px; right: 0px; font-family: 'digital'; color: white}
+
+		</style>
+
+    <title>PONG</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/103/three.min.js"></script>
+
+    <script>
+
+      //declared variable
+      var direction = "stop";
+      var speed = 0.5;
+      var speedia = 0.25;
+      var stepX = 0.15;
+      var stepY = 0.25;
+      var player_score = 0;
+      var ia_score = 0;
+      var max_score = 5;
+      var co_count = 0;
+      var begin = true;
+      var counter = 0;
+      var range = 0;
+      var fov = 90;
+      //read keys
+      document.addEventListener("keydown", onDocumentKeyDown, false);
+      function onDocumentKeyDown(event){
+        var keyCode = event.which;
+        //Left
+        switch (keyCode){
+          case 37: direction = "right";
+          break;
+          //Right
+          case 39: direction = "left";
+          break;
+          //space
+          case 32: begin = false;
+          break;
+          //A
+          case 65: fov = 90;
+          document.getElementById("FOV").innerHTML = "Selected Fov: " + fov;
+          break;
+          //S
+          case 83: fov = 70;
+          document.getElementById("FOV").innerHTML = "Selected Fov: " + fov;
+          break;
+          //D
+          case 68: fov = 50;
+          document.getElementById("FOV").innerHTML = "Selected Fov: " + fov;
+          break;
+        }
+      }
+      //function for beggining
+      function start(){
+        if(begin){
+          requestAnimationFrame(start);
+        }
+        else if(begin == false){
+          document.getElementById("winnerBoard").innerHTML = "";
+          document.getElementById("Press_Start").innerHTML = "";
+          init();
+        }
+      }
+
+      function init() {
+        var scene = new THREE.Scene();
+        var sceneWidth = window.innerWidth -20;
+        var sceneHeight = window.innerHeight - 200;
+        var i = document.getElementById("option").value;
+        var camera = new THREE.PerspectiveCamera(fov, sceneWidth / sceneHeight, 0.01, 100);
+        camera.position.set(0, -20, 20);
+        camera.lookAt(scene.position);
+
+        //SOUND
+        var listener = new THREE.AudioListener();
+        camera.add(listener);
+        // create a global audio source
+        var sound = new THREE.Audio( listener );
+        var audioLoader = new THREE.AudioLoader();
+        switch(i){
+          case "arcade": var music = "TRON_MUSIC.mp3";
+            scene.background = new THREE.TextureLoader().load("BG.png");
+          break;
+          case "animado": var music = "SHIRE_MUSIC.mp3";
+            scene.background = new THREE.TextureLoader().load("BG_ANIMATED.jpg");
+          break;
+        }
+        audioLoader.load( music, function( buffer ) {
+          sound.setBuffer( buffer );
+          sound.setLoop( true );
+          sound.setVolume( 0.5 );
+          sound.play();
+        });
+
+        var renderer = new THREE.WebGLRenderer({
+          antialias : true
+        });
+        renderer.shadowMap.enabled = true;
+        renderer.setSize(sceneWidth, sceneHeight);
+        document.body.appendChild(renderer.domElement);
+        //create the scene
+        var light = getLight(3);
+        var light2 = getLight(-3);
+        var leftBorder = getBorder("left", 1, 30, 2, -10, 0, 0);
+        var rightBorder = getBorder("right", 1, 30, 2, 10, 0, 0);
+        var player = getPlayer("down", -13);
+        var ia = getPlayer("top", 13);
+        var sphere = getSphere();
+        var floor = getFloor();
+
+        scene.add(light);
+        scene.add(leftBorder);
+        scene.add(rightBorder);
+        scene.add(sphere);
+        scene.add(floor);
+        scene.add(player);
+        scene.add(ia);
+        scene.add(light2);
+
+        var borders = [leftBorder, rightBorder, player, ia];
+        //set the difficulty
+        var l = document.getElementById("option1").value;
+        switch(l){
+          case "1": range = 3;
+          break;
+          case "2": range = 2;
+          break;
+          case "3": range = 0;
+          break;
+          case "4": range = -5;
+          break;
+        }
+
+        animate(sphere, borders, renderer, scene, camera, range);
+        document.getElementById("option").innerHTML = "";
+        document.getElementById("option1").innerHTML = "";
+      }
+
+      function animate(sphere, borders, renderer, scene, camera, range){
+        checkCollision(sphere, borders);
+        player_move(borders)
+        requestAnimationFrame(function() {
+          animate(sphere, borders, renderer, scene, camera, range);
+        });
+        //ball move
+        sphere.position.x += stepX;
+        sphere.position.y += stepY;
+
+        //ia movement
+        if(borders[3].position.x == -7){
+          borders[3].position.x += speedia;
+        }else if(borders[3].position.x == 7){
+          borders[3].position.x -= speedia;
+        }else if(sphere.position.x > borders[3].position.x && sphere.position.y > range){
+          borders[3].position.x += speedia;
+        }else if(sphere.position.x < borders[3].position.x && sphere.position.y > range){
+          borders[3].position.x -= speedia;
+        }
+
+        direction = "stop";
+        //scoring a point and restarting the ball
+        if (sphere.position.y < -13.5){
+          ia_score += 1;
+          document.getElementById("scores").innerHTML = player_score + "-" + ia_score;
+          sphere.position.x = 0;
+          sphere.position.y = 0;
+          stepX = 0.15;
+          stepY = 0.25;
+          matchscore();
+        }else if (sphere.position.y > 13.5){
+          player_score +=1;
+          document.getElementById("scores").innerHTML = player_score + "-" + ia_score;
+          sphere.position.x = 0;
+          sphere.position.y = 0;
+          stepX = 0.15;
+          stepY = 0.25;
+          matchscore();
+        }
+        renderer.render(scene,camera);
+      }
+      //end of animate
+
+
+      function player_move(borders){
+        //player movement
+        if(direction == "right"){
+          if(borders[2].position.x == -7){
+            borders[2].position.x == 0;
+          }else{
+            borders[2].position.x -= speed;
+            counter += 1;
+          }
+        }else if(direction == "left"){
+          if(borders[2].position.x == 7){
+            borders[2].position.x == 0;
+          }else{
+            borders[2].position.x += speed;
+            counter += 1;
+          }
+        }else if(direction = "stop"){
+          borders[2].position.x == 0;
+        }
+      }
+
+      function matchscore(){
+        //end of the game
+        if(player_score == max_score){
+          document.getElementById("scores").innerHTML = "Player wins!";
+          alert("Player wins!")
+          document.location.reload();
+        }else if(ia_score == max_score){
+          document.getElementById("scores").innerHTML = "IA wins!";
+          alert("IA wins!")
+          document.location.reload();
+        }
+      }
+
+      function getLight(posx) {
+        //set the light
+        var light = new THREE.DirectionalLight();
+
+        light.position.set(posx, 3, 3);
+        light.castShadow = true;
+        light.shadow.camera.near = 0;
+        light.shadow.camera.far = 20;
+        light.shadow.camera.left = -30;
+        light.shadow.camera.right = 30;
+        light.shadow.camera.top = 30;
+        light.shadow.camera.bottom = -30;
+        light.shadow.mapSize.width = 4096;
+        light.shadow.mapSize.height = 4096;
+
+        return light;
+      }
+
+      //CREATE THE COMPONENTS
+
+     function getSphere() {
+       //create the ball
+       var geometry = new THREE.SphereGeometry(0.5, 20, 20);
+       var mesh = new THREE.Mesh(geometry, getBallMaterial());
+
+        mesh.position.z = 0;
+        mesh.castShadow = true;
+        mesh.name = "sphere";
+
+        return mesh;
+
+     }
+
+     function getFloor() {
+       //create the floor
+        var geometry = new THREE.PlaneGeometry(20, 30);
+        var mesh = new THREE.Mesh(geometry, getFloorMaterial());
+
+        mesh.receiveShadow = true;
+
+        return mesh;
+     }
+
+     function getBorder(name, x, y, z, posX, posY, posZ) {
+       //create the limits of the field
+        var geometry = new THREE.BoxGeometry(x, y, z);
+        var mesh = new THREE.Mesh(geometry, getBorderMaterial());
+
+        mesh.receiveShadow = true;
+        mesh.position.set(posX, posY, posZ);
+        mesh.name = name;
+
+        return mesh;
+     }
+
+     function getPlayer(name, posY){
+       //create the paddles
+       var geometry = new THREE.BoxGeometry(5, 1, 1);
+       var mesh = new THREE.Mesh(geometry, getPlayerMaterial());
+
+       mesh.receiveShadow = true;
+       mesh.name = name;
+       mesh.position.y = posY;
+
+       return mesh;
+     }
+
+     //CREATE THE TEXTURES DEPENDING THE PLAYER SELECTION
+
+      function getBallMaterial() {
+        //set the texture for the ball
+        var i = document.getElementById("option").value;
+        if( i=="arcade"){
+           var texture = new THREE.TextureLoader().load("BALL_ARCADE.jpg");
+        }else{
+          var texture = new THREE.TextureLoader().load("BALL_ANIMATED.jpg");
+        }
+        var material = new THREE.MeshPhysicalMaterial({
+          map : texture
+        });
+
+        material.side = THREE.DoubleSide;
+
+
+         return material;
+      }
+
+      function getFloorMaterial(floor) {
+        //set the texture for the floor
+        var i = document.getElementById("option").value;
+        if( i=="arcade"){
+           var texture = new THREE.TextureLoader().load("BG.png");
+        }else{
+          var texture = new THREE.TextureLoader().load("FLOOR_ANIMATED.jpg");
+        }
+        var material = new THREE.MeshPhysicalMaterial({
+          map : texture
+        });
+
+        material.side = THREE.DoubleSide;
+
+
+         return material;
+      }
+      function getBorderMaterial() {
+        //set the texture for the borders
+        var i = document.getElementById("option").value;
+        if( i=="arcade"){
+           var texture = new THREE.TextureLoader().load("BORDER_ARCADE.jpg");
+        }else{
+          var texture = new THREE.TextureLoader().load("BORDER_ANIMATED.jpg");
+        }
+         var material = new THREE.MeshPhysicalMaterial({
+            map : texture
+         });
+
+         material.side = THREE.DoubleSide;
+         return material;
+      }
+
+      function getPlayerMaterial() {
+        //set the texture for the paddles
+        var i = document.getElementById("option").value;
+        if( i=="arcade"){
+           var texture = new THREE.TextureLoader().load("PAD_ARCADE.jpg");
+        }else{
+          var texture = new THREE.TextureLoader().load("PAD_ANIMATED.jpg");
+        }
+         var material = new THREE.MeshPhysicalMaterial({
+            map : texture
+         });
+
+         material.side = THREE.DoubleSide;
+         return material;
+       }
+
+       //MAKE THE COLLISIONS
+
+      function checkCollision(sphere, borders) {
+        var originPosition = sphere.position.clone();
+        var speed = 0;
+        co_count++;
+
+        for (var i = 0; i < sphere.geometry.vertices.length; i++) {
+          var localVertex = sphere.geometry.vertices[i].clone();
+          var globalVertex = localVertex.applyMatrix4(sphere.matrix);
+          var directionVector = globalVertex.sub(sphere.position);
+          var ray = new THREE.Raycaster(originPosition, directionVector.clone().normalize());
+          var collisionResults = ray.intersectObjects(borders);
+          if (collisionResults.length > 0 && collisionResults[0].distance < directionVector.length()) {
+            // Collision with borders
+            if (collisionResults[0].object.name == "left" || collisionResults[0].object.name == "right") {
+              stepX *= -1;
+            }
+            //Solved the bug for non-detected collition
+            if(co_count > 20){
+              //set the speedY variation depending the speed of the player
+              if(counter < 5){
+                speed = -0.9;
+              }else if(counter < 10){
+                speed = -1.05;
+              }else if(counter < 20){
+                speed = -1.07;
+              }else if(counter < 30){
+                speed = -1.08;
+              }else{
+                speed = -1.09;
+              }
+
+              //collision with player depending the part of the paddle
+              if (collisionResults[0].object.name == "down") {
+                if(collisionResults[0].point.x < borders[2].position.x + 1 && collisionResults[0].point.x > borders[2].position.x - 1){
+                  stepY *= speed;
+                  stepX *= 0.70;
+                  co_count = 0;
+                }else if(collisionResults[0].point.x > borders[2].position.x + 1 || collisionResults[0].point.x < borders[2].position.x - 1){
+                  stepY *= speed;
+                  stepX *= 1.3;
+                  co_count = 0;
+                }
+                //collision with IA
+              }else if (collisionResults[0].object.name == "top"){
+                //increasing the speed a bit get the game interesting
+                stepY *= -1.04;
+                co_count = 0;
+                counter = 0;
+              }
+            }else if(co_count < 20){
+              break;
+            }
+            break;
+          }
+        }
+      }
+    </script>
+  </head>
+
+  <body onload="start()">
+    <div id='scoreboard'>
+
+			<h1 id='scores'>0-0</h1>
+
+      <select id="option">
+       <option value="arcade">Arcade</option>
+       <option value="animado">Animated</option>
+      </select>
+
+      <select id="option1">
+       <option value="1">VERY EASY</option>
+       <option value="2">EASY</option>
+       <option value="3">NORMAL</option>
+       <option value="4">IMPOSSIBLE</option>
+      </select>
+
+			<h2 id='winnerBoard'>First to 5 wins <br><br>
+        <audio id="audio" src="STAR_MUSIC.ogg" preload="auto" autoplay></audio>
+          <-  move left/move right -> <br><br>
+          <div id="FOV">
+          CHOOSE FOV :<br>
+          A = 90/S = 70/D = 50
+        </div>
+      </h2>
+      <h3 id = "Press_Start">
+        PRESS SPACE TO START
+      </h3>
+		</div>
+  </body>
+</html>
